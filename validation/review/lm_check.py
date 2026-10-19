@@ -118,6 +118,19 @@ def close(got, want, rel=1e-6, abs_=0.0):
     return abs(got - want) <= rel * scale if scale else abs(got - want) <= rel
 
 
+def thickness_deviation(actual, expected, zero_tol=1e-6):
+    if not (np.all(np.isfinite(actual)) and np.all(np.isfinite(expected))):
+        return float("inf")
+    # Retained films already correspond, even when their thicknesses straddle
+    # the zero cutoff. Only reconcile zeros when a removal changed the count.
+    if actual.size != expected.size:
+        actual = actual[np.abs(actual) > zero_tol]
+        expected = expected[np.abs(expected) > zero_tol]
+    if actual.size != expected.size:
+        return float("inf")
+    return float(np.max(np.abs(actual - expected), initial=0.0))
+
+
 # ---------------------------------------------------------------------------
 # A. The thin-film refold case
 # ---------------------------------------------------------------------------
@@ -208,23 +221,10 @@ def part_a():
         check(f"A1/{label}: cost parity",
               close(ecost, scost, rel=1e-6, abs_=1e-12),
               f"{ecost:.10g} vs {scost:.10g}")
-        # A film driven to exactly 0.0 is below any positive minimum, so the
-        # clamp sweep removes it and the engine returns one fewer thickness.
-        # scipy keeps the zero. Same optimum, different bookkeeping: drop the
-        # zeros from scipy'"'"'s answer before comparing, and say so.
-        sx_kept = sx[sx > 1e-6]
-        if sx_kept.size != ex.size:
-            check(f"A1/{label}: optimum parity", False,
-                  f"film counts differ: engine {ex.size}, scipy {sx_kept.size} "
-                  f"non-zero of {sx.size}")
-        else:
-            if sx_kept.size != sx.size:
-                print(f"       (scipy drove {sx.size - sx_kept.size} film(s) to "
-                      f"zero; the engine removed them)")
-            dev = float(np.max(np.abs(ex - sx_kept)))
-            check(f"A1/{label}: optimum parity",
-                  dev < 1e-3 * max(1.0, float(ex.max())),
-                  f"max |dx| = {dev:.3e} nm")
+        dev = thickness_deviation(ex, sx)
+        check(f"A1/{label}: optimum parity",
+              dev < 1e-3 * max(1.0, float(ex.max(initial=0.0))),
+              f"max |dx| = {dev:.3e} nm; engine {ex} vs scipy {sx}")
 
     print("  A2. far starts: each solver's answer is a fixed point of itself")
     for label, films in starts:
@@ -407,14 +407,9 @@ def part_d():
               erep["backend"] == "trf", erep["backend"])
         check(f"D/{label}: cost parity", close(ecost, scost, rel=1e-9, abs_=1e-14),
               f"{ecost:.12g} vs {scost:.12g}")
-        sx_kept = sx[sx > 1e-6]
-        if sx_kept.size != ex.size:
-            check(f"D/{label}: optimum parity", False,
-                  f"film counts differ: engine {ex.size}, scipy {sx_kept.size}")
-        else:
-            dev = float(np.max(np.abs(ex - sx_kept)))
-            check(f"D/{label}: optimum parity", dev < 1e-4,
-                  f"max |dx| = {dev:.3e} nm")
+        dev = thickness_deviation(ex, sx)
+        check(f"D/{label}: optimum parity", dev < 1e-4,
+              f"max |dx| = {dev:.3e} nm; engine {ex} vs scipy {sx}")
 
     print("  D2. a bound-active optimum, which is what TRF is for")
     print("      -- part B could only check scipy against a hand-written pin,")
@@ -630,15 +625,10 @@ def part_f():
                 if case["parity"]:
                     check(f"{label}: cost parity", close(cost, scost, rel=1e-9, abs_=1e-12),
                           f"{cost:.12g} vs scipy {scost:.12g}")
-                    # A solver can retain a sub-tolerance film that another
-                    # solver's removal sweep deletes. Treat both as zero at
-                    # the declared thickness tolerance; removal itself has a
-                    # separate smoke test with the physical 2 nm threshold.
-                    kept = sx[sx > 1e-4]
-                    actual = x[x > 1e-4]
+                    dev = thickness_deviation(x, sx, zero_tol=1e-4)
                     check(f"{label}: thickness parity",
-                          actual.size == kept.size and np.allclose(actual, kept, rtol=0.0, atol=1e-4),
-                          f"{x} vs scipy {sx}")
+                          dev <= 1e-4,
+                          f"max |dx| = {dev:.3e} nm; {x} vs scipy {sx}")
 
 
 def main():

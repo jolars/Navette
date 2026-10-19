@@ -104,9 +104,10 @@ thin-film merits and the removal sweep. SciPy comparisons use matching starts
 near established optima; distant starts require feasibility and improvement,
 since different local minima are legitimate. Rank-deficient tests compare
 identifiable combinations rather than arbitrary parameter representatives. For
-thickness comparisons, films smaller than the `1e-4 nm` comparison tolerance
-count as zero on both sides. The physical removal sweep is tested separately at
-the usual `2 nm` threshold.
+thickness comparisons, retained films are compared directly at `1e-4 nm`
+tolerance. If the removal sweep changes the film count, sub-tolerance films
+count as zero on both sides. The physical removal sweep is tested separately
+at the usual `2 nm` threshold.
 
 The benchmark warms each case once, times 21 fresh-stack runs, and records a
 five-number summary of the wall time (min, quartiles, median, max, in ms)
